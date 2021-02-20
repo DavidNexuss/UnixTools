@@ -42,6 +42,12 @@ ssize_t read_buffer(int fd,unsigned char* buffer,ssize_t maxsize,ssize_t minsize
 
 #ifdef __cplusplus
 #include <memory>
+
+template< typename T > 
+struct is_fd{ 
+  static const bool value = false;
+};
+
 class FD
 {
     struct FDHandler
@@ -81,20 +87,40 @@ class FD
     FD& operator<<(const T& value)
     {
         if (errored) return *this;
-        int status = write(fd->fd,&value,sizeof(T));
+        int status;
+        if constexpr (is_fd<T>::value)
+        {
+            status = cpy(value,*this);
+        }
+        else
+        {
+            status = write(fd->fd,&value,sizeof(T));
+        }
         errored |= status < 0;
         return *this;
     }
-
     template <typename T>
     FD& operator>>(T& value)
     {
         if (errored || eof) return *this;
-        int status = read(fd->fd,&value,sizeof(T));
+        int status;
+        if constexpr (is_fd<T>::value)
+        {
+            status = cpy(*this,value);
+        }
+        else
+        {
+            status = read(fd->fd,&value,sizeof(T));
+        }
         errored |= status < 0;
         eof |= status == 0;
         return *this;
     }
+};
+
+template<>
+struct is_fd<FD> { 
+  static const bool value = true;
 };
 
 inline void pipe(FD* pipe_fd)

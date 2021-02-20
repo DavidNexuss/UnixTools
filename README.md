@@ -62,6 +62,16 @@ You can do:
 
 It directly uses read and write sycalls so reading and writing is done in internal/binary representation of the machine, is not serialized data, just plain binary data of each variable.
 
+This syntax also works with other file descriptors allowing copying from one to another (using read and write syscalls, for more efficient data transfer use splice)
+
+``` c++
+    FD input = 0;
+    FD output = 1;
+
+    bool ok = input >> output;
+    if (!ok) cerr << "EOF" << endl;
+```
+
 ## Net examples
 
 
