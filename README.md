@@ -75,6 +75,10 @@ UDP is connectionless so either client and server UPD_FD can be used as server o
     int fd_dec = aes_crypt(fd_enc,key,1);
 
     cpy(fd_dec,1);
+
+    //For killing the crypt process once we are done
+    close(0);
+    close(fd_enc);
 ```
 
 aes_crypt can decrypt or encrypt a fd, the process is forked and the input fd is closed in the main process, the file descriptor of the pipe that will be used to comunicate the main process and the encryption process will be returned, in case of failure -1 will be returned.
