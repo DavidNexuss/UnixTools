@@ -21,7 +21,7 @@ ssize_t cpy(int src,int dst)
 }
 #ifdef __cplusplus
 template <typename VFD>
-ssize_t read_buffer(VFD fd,uint8_t* buffer,ssize_t maxsize,ssize_t minsize = -1)
+ssize_t read_buffer(VFD fd,unsigned char* buffer,ssize_t maxsize,ssize_t minsize = -1)
 #else
 ssize_t read_buffer(int fd,unsigned char* buffer,ssize_t maxsize,ssize_t minsize)
 #endif
@@ -42,7 +42,7 @@ ssize_t read_buffer(int fd,unsigned char* buffer,ssize_t maxsize,ssize_t minsize
 
 #ifdef __cplusplus
 #include <memory>
-struct FD
+class FD
 {
     struct FDHandler
     {
@@ -56,6 +56,8 @@ struct FD
     };
 
     std::shared_ptr<FDHandler> fd;
+
+    public:
     inline FD() { }
     inline FD(int _fd)
     {
