@@ -7,6 +7,7 @@ more the system interface providing in some cases C++ wrappers for example
 
 
 ## FD template examples
+
 ``` c
     int fd = open("some_file",O_RDONLY);
 ```
@@ -16,6 +17,50 @@ more the system interface providing in some cases C++ wrappers for example
 ```
 
 FD is a c++ template in one of the heades that keeps a smart pointer to a file descriptor, when the last reference to fd is destroyed, the FD destructor will call close syscall automatically. So close will be called automatically when the file descriptor is no longer used.
+
+C++ stream operators << and >> are overloaded to work with file descriptors, so instead of
+
+``` c
+    int fd = open("some_file",O_RDONLY);
+    int a,b,c;
+    char buffer[64];
+    
+    while(1)
+    {
+        int n = read(fd,&a,sizeof(a));
+        if (n != sizeof(a)) break;
+
+        n = read(fd,&b,sizeof(b));
+        if (n != sizeof(b)) break;
+
+        n = read(fd,&c,sizeof(c));
+        if (n != sizeof(c)) break;
+
+        n = read(fd,buffer,sizeof(buffer));
+        if (n != sizeof(buffer)) break;
+
+        printf("%s %d\n",buffer,a + b + c);
+    }
+
+    dprintf(2,"EOF\n");
+    close(fd);
+
+```
+
+You can do: 
+
+``` c++
+    FD fd = open("some_file",O_RDONLY);
+    int a,b,c;
+    char buffer[64];
+    while (fd >> a >> b >> c >> buffer)
+    {
+        cout << buffer << (a + b + c) << endl;
+    }
+    cerr << "EOF" << endl;
+```
+
+It directly uses read and write sycalls so reading and writing is done in internal/binary representation of the machine, is not serialized data, just plain binary data of each variable.
 
 ## Net examples
 
