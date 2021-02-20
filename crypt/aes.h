@@ -51,6 +51,18 @@ inline int encrypt(EVP_CIPHER_CTX* ctx,const unsigned char *plaintext, int plain
 
     return ciphertext_len;
 }
+
+/*
+ * Aes crypt encrypts/decrypts using AES 128 in the following format
+ *
+ * For encryption a block of a maximum size of buffer_size (4096) is taken from input_fd, then it is encrypted to
+ * cypher_buffer, then the number of encrypted bytes and the encrypted bytes are written to output.
+ *
+ * For decryption the number of encrypted bytes is read from input and then the encypted bytes are read.
+ * Finally the decrypted data is written to the output fd
+ *
+ */
+
 #ifdef __cplusplus
 template <typename VFD>
 static int aes_crypt(VFD input_fd,const uint8_t* key,bool mode)
@@ -73,6 +85,11 @@ static int aes_crypt(int input_fd,const unsigned char* key,bool mode)
     {
         close(pipe_fd[0]);
 
+        //Naive way to close all fd except input and output
+        for(int i = 3; i < sysconf(_SC_OPEN_MAX); i++) {
+            if (i != input_fd && i != pipe_fd[1]) close(i);
+        }
+
         EVP_CIPHER_CTX *ctx;
         /* Create and initialise the context */
         if(!(ctx = EVP_CIPHER_CTX_new()))
@@ -90,7 +107,7 @@ static int aes_crypt(int input_fd,const unsigned char* key,bool mode)
         while((mode || read(input_fd,&read_size,sizeof(int))) && ((n = read_buffer(input_fd,input_buffer,read_size,256)) > 0))
         {
             int nl;
-            if constexpr (mode)
+            if (mode)
             {
                  nl = encrypt(ctx,input_buffer,n,key,iv,cipher_buffer);
                  write(pipe_fd[1],&nl,sizeof(int));
@@ -102,6 +119,7 @@ static int aes_crypt(int input_fd,const unsigned char* key,bool mode)
         }
 
         EVP_CIPHER_CTX_free(ctx);
+        exit(1);
     }
 
     close(input_fd);
