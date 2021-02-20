@@ -56,6 +56,8 @@ class FD
     };
 
     std::shared_ptr<FDHandler> fd;
+    bool errored = false;
+    bool eof = false;
 
     public:
     inline FD() { }
@@ -73,6 +75,26 @@ class FD
     }
 
     operator int() const { return fd->fd; }
+    operator bool() const { return !errored && !eof && fd && fd->fd >= 0; }
+
+    template <typename T>
+    FD& operator<<(const T& value)
+    {
+        if (errored) return *this;
+        int status = write(fd->fd,&value,sizeof(T));
+        errored |= status < 0;
+        return *this;
+    }
+
+    template <typename T>
+    FD& operator>>(T& value)
+    {
+        if (errored || eof) return *this;
+        int status = read(fd->fd,&value,sizeof(T));
+        errored |= status < 0;
+        eof |= status == 0;
+        return *this;
+    }
 };
 
 inline void pipe(FD* pipe_fd)
