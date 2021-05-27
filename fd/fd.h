@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+
 #ifdef __cplusplus
 template <typename FDA,typename FDB>
 ssize_t cpy(FDA src,FDB dst)
@@ -10,9 +11,10 @@ ssize_t cpy(FDA src,FDB dst)
 ssize_t cpy(int src,int dst)
 #endif
 {
-    char buffer[1024];
+    const static ssize_t buffer_size = 4096;
+    char buffer[buffer_size];
     ssize_t n;
-    while((n = read(src,buffer,1024)) > 0)
+    while((n = read(src,buffer,buffer_size)) > 0)
     {
         write(dst,buffer,n);
     }
@@ -39,7 +41,6 @@ ssize_t read_buffer(int fd,unsigned char* buffer,ssize_t maxsize,ssize_t minsize
     return current_size;
 }
 
-
 #ifdef __cplusplus
 #include <memory>
 
@@ -57,6 +58,9 @@ class FD
         FDHandler(int _fd) : fd(_fd) { }
         ~FDHandler()
         {
+            #ifdef DEBUG_FD
+            dprintf(2,"Closing FD %d\n",fd);
+            #endif
             close(fd);
         }
     };
@@ -65,31 +69,45 @@ class FD
     bool errored = false;
     bool eof = false;
 
+
+    inline bool valid() const { return !errored && !eof && fd && fd->fd >= 0; }
+    inline void reset(int _fd)
+    {
+
+        #ifdef DEBUG_FD
+        dprintf(2,"Setting FD %d\n",_fd);
+        #endif
+        fd = std::make_shared<FDHandler>(_fd);
+        errored = false;
+        eof = false;
+    }
     public:
     inline FD() { }
-    inline FD(int _fd)
-    {
-        fd = std::make_shared<FDHandler>(_fd);
-    }
+    inline FD(int _fd) { reset(_fd); }
     inline FD(const FD& other) {
         fd = other.fd;
+        errored = other.errored;
+        eof = other.eof;
     }
     
     inline FD& operator=(int _fd) { 
-        fd = std::make_shared<FDHandler>(_fd);
+        reset(_fd);
         return *this;
     }
 
     operator int() const { return fd->fd; }
-    operator bool() const { return !errored && !eof && fd && fd->fd >= 0; }
+    operator bool() const { return valid(); }
 
     template <typename T>
     FD& operator<<(const T& value)
     {
-        if (errored) return *this;
+        if (!valid()) return *this;
         int status;
         if constexpr (is_fd<T>::value)
         {
+            #ifdef DEBUG_FD
+            dprintf(2,"Cpy from %d to %d",int(value),fd->fd);
+            #endif
             status = cpy(value,*this);
         }
         else
@@ -102,10 +120,13 @@ class FD
     template <typename T>
     FD& operator>>(T& value)
     {
-        if (errored || eof) return *this;
+        if (!valid()) return *this;
         int status;
         if constexpr (is_fd<T>::value)
         {
+            #ifdef DEBUG_FD
+            dprintf(2,"Cpy from %d to %d",fd->fd,int(value));
+            #endif
             status = cpy(*this,value);
         }
         else
@@ -114,6 +135,9 @@ class FD
         }
         errored |= status < 0;
         eof |= status == 0;
+        #ifdef DEBUG_FD
+        dprintf(2,"Status %d",status);
+        #endif
         return *this;
     }
 };
