@@ -143,6 +143,7 @@ struct ConnectionState {
     int outputFd;
 };
 
+template <typename ConnectionState>
 struct ServerState { 
     ConnectionStateIdentifier nextIdentifier = 0;
     std::unordered_map<ConnectionStateIdentifier,ConnectionState> connections;
@@ -177,7 +178,7 @@ struct ServerState {
     } 
 };  
 
-template <typename T>
+template <typename ConnectionState,typename T>
 void create_server(int sfd,T&& function) { 
     if (sfd == -1) {
         perror("create_server");
@@ -185,7 +186,7 @@ void create_server(int sfd,T&& function) {
     }
 
 
-    ServerState serverState;
+    ServerState<ConnectionState> serverState;
     int nfd;
     while((nfd = accept(sfd,NULL,NULL)) != -1) { 
         serverState.createConnection({nfd,nfd},function);
