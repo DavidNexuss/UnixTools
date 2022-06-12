@@ -7,6 +7,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h> 
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define SA struct sockaddr
 
@@ -128,3 +130,67 @@ int create_server(int sfd)
     perror("accept");
     return -1;
 }
+
+#ifdef __cplusplus
+#include <thread>
+#include <vector>
+#include <unordered_map>
+
+using ConnectionStateIdentifier = size_t;
+
+struct ConnectionState { 
+    int inputFd;
+    int outputFd;
+};
+
+template <typename ConnectionState>
+struct ServerState { 
+    ConnectionStateIdentifier nextIdentifier = 0;
+    std::unordered_map<ConnectionStateIdentifier,ConnectionState> connections;
+
+    template <typename T>
+    ConnectionStateIdentifier createConnection(ConnectionState state,T&& function) {
+
+        ConnectionStateIdentifier currentId = nextIdentifier;
+        connections[currentId] = state;
+
+        std::thread([function,currentId,this](){
+            function(currentId, this->connections[currentId],*this);
+            this->finalizeConnection(currentId);
+        }).detach();
+
+        nextIdentifier++;
+        return currentId;
+    } 
+
+    void finalizeConnection(ConnectionStateIdentifier identifier) { 
+        connections.erase(identifier);
+    }
+
+
+    size_t connectionCount() const { return connections.size(); }
+
+    template <typename T>
+    void foreachConnection(T&& function) {
+        for (const auto& kv : connections) { 
+            function(kv.first,kv.second);
+        }
+    } 
+};  
+
+template <typename ConnectionState,typename T>
+void create_server(int sfd,T&& function) { 
+    if (sfd == -1) {
+        perror("create_server");
+        exit(1);
+    }
+
+
+    ServerState<ConnectionState> serverState;
+    int nfd;
+    while((nfd = accept(sfd,NULL,NULL)) != -1) { 
+        serverState.createConnection({nfd,nfd},function);
+    }
+    perror("accept");
+}
+#endif
