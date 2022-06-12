@@ -63,12 +63,11 @@ inline int encrypt(EVP_CIPHER_CTX* ctx,const unsigned char *plaintext, int plain
  *
  */
 
-#ifdef __cplusplus
-template <typename VFD>
-static int aes_crypt(VFD input_fd,const uint8_t* key,bool mode)
-#else
-static int aes_crypt(int input_fd,const unsigned char* key,bool mode)
-#endif
+#include <iostream>
+using namespace std;
+
+template <bool mode>
+int aes_crypt(int input_fd,const uint8_t* key)
 {
     unsigned char *iv = (unsigned char *)"0123456789012345";
     if (input_fd < 0)
@@ -85,29 +84,22 @@ static int aes_crypt(int input_fd,const unsigned char* key,bool mode)
     {
         close(pipe_fd[0]);
 
-        //Naive way to close all fd except input and output
-        for(int i = 3; i < sysconf(_SC_OPEN_MAX); i++) {
-            if (i != input_fd && i != pipe_fd[1]) close(i);
-        }
-
         EVP_CIPHER_CTX *ctx;
         /* Create and initialise the context */
         if(!(ctx = EVP_CIPHER_CTX_new()))
             handleErrors();
 
 
-        const int buffer_size  = 4096;
+        const int buffer_size  = 4096 * 2;
         uint8_t input_buffer[buffer_size * 2];
         uint8_t cipher_buffer[buffer_size * 2];
-        int n;
 
         int read_size = buffer_size;
-        int succes;
-
-        while((mode || read(input_fd,&read_size,sizeof(int))) && ((n = read_buffer(input_fd,input_buffer,read_size,256)) > 0))
+        int n;
+        while((mode || read(input_fd,&read_size,sizeof(int))) && ((n = read(input_fd,input_buffer,read_size)) > 0))
         {
             int nl;
-            if (mode)
+            if constexpr (mode)
             {
                  nl = encrypt(ctx,input_buffer,n,key,iv,cipher_buffer);
                  write(pipe_fd[1],&nl,sizeof(int));
@@ -119,10 +111,12 @@ static int aes_crypt(int input_fd,const unsigned char* key,bool mode)
         }
 
         EVP_CIPHER_CTX_free(ctx);
-        exit(1);
     }
 
     close(input_fd);
     close(pipe_fd[1]);
     return pipe_fd[0];
 }
+
+const auto create_encrypt_device = aes_crypt<true>;
+const auto create_decrypt_device = aes_crypt<false>;
