@@ -138,9 +138,10 @@ int create_server(int sfd)
 
 using ConnectionStateIdentifier = size_t;
 
+template <typename FD>
 struct ConnectionState { 
-    int inputFd;
-    int outputFd;
+    FD inputFd;
+    FD outputFd;
 };
 
 template <typename ConnectionState>
@@ -178,8 +179,9 @@ struct ServerState {
     } 
 };  
 
-template <typename ConnectionState,typename T>
-void create_server(int sfd,T&& function) { 
+//FD must support accept function
+template <typename ConnectionState,typename FD, typename T>
+void create_server(FD sfd,T&& function) { 
     if (sfd == -1) {
         perror("create_server");
         exit(1);
