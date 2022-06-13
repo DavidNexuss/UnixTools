@@ -90,7 +90,7 @@ int aes_crypt(int input_fd,const uint8_t* key)
             handleErrors();
 
 
-        const int buffer_size  = 4096 * 2;
+        const int buffer_size  = 4096;
         uint8_t input_buffer[buffer_size * 2];
         uint8_t cipher_buffer[buffer_size * 2];
 
@@ -102,10 +102,12 @@ int aes_crypt(int input_fd,const uint8_t* key)
             if constexpr (mode)
             {
                  nl = encrypt(ctx,input_buffer,n,key,iv,cipher_buffer);
+                 cerr << "encrypting " << n << " " << nl << endl;
                  write(pipe_fd[1],&nl,sizeof(int));
             }
             else{
                  nl = decrypt(ctx,input_buffer,n,key,iv,cipher_buffer);
+                 cerr << "Decrypting " << n << " " << nl << endl;
             }
             write(pipe_fd[1],cipher_buffer,nl);
         }
