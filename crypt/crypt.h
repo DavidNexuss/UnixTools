@@ -64,12 +64,62 @@ inline int encrypt(EVP_CIPHER_CTX* ctx,const unsigned char *plaintext, int plain
  */
 
 #include <iostream>
+
 using namespace std;
 
-template <bool mode>
-int aes_crypt(int input_fd,const uint8_t* key)
-{
-    unsigned char *iv = (unsigned char *)"0123456789012345";
+unsigned char *iv = (unsigned char *)"0123456789012345";
+const inline int buffer_size = 4096;
+void encrypt(int input_fd,int output_fd, const uint8_t* key) { 
+
+
+    EVP_CIPHER_CTX *ctx;
+    /* Create and initialise the context */
+    if(!(ctx = EVP_CIPHER_CTX_new()))
+        handleErrors();
+
+
+    uint8_t* input_buffer = new uint8_t[buffer_size];
+    uint8_t* cipher_buffer = new uint8_t[buffer_size * 2];
+
+    int input_size;
+
+    int buffer[2];
+    pipe(buffer);
+
+    while((input_size = read(input_fd,input_buffer,buffer_size)) > 0) { 
+        int encrypted_size = encrypt(ctx,input_buffer,input_size,key,iv,cipher_buffer);
+        write(output_fd,&encrypted_size,sizeof(encrypted_size));
+        write(output_fd,cipher_buffer,encrypted_size);
+        //For atomic writes :
+        //splice(buffer[0],nullptr,output_fd,nullptr,sizeof(encrypted_size) + encrypted_size,SPLICE_F_MOVE);
+    }
+}
+
+void decrypt(int input_fd,int output_fd,const uint8_t* key) { 
+    EVP_CIPHER_CTX *ctx;
+    /* Create and initialise the context */
+    if(!(ctx = EVP_CIPHER_CTX_new()))
+        handleErrors();
+
+    uint8_t* input_buffer = new uint8_t[buffer_size * 2];
+    uint8_t* cipher_buffer = new uint8_t[buffer_size * 2];
+
+    int input_size;
+    
+    while(read(input_fd,&input_size,sizeof(input_size)) == sizeof(input_size)) { 
+        int newInputSize = read(input_fd,input_buffer,input_size);
+        if(newInputSize != input_size) { 
+            cerr << newInputSize << " " << input_size  << endl;
+            exit(1);
+        }
+        int decrypted_size = decrypt(ctx,input_buffer,input_size,key,iv,cipher_buffer);
+        write(output_fd,cipher_buffer,decrypted_size);
+    }
+}
+
+template <typename T>
+int virtual_pipe(int input_fd,T&& function) { 
+
     if (input_fd < 0)
     {
         perror("invalid fd");
@@ -79,46 +129,13 @@ int aes_crypt(int input_fd,const uint8_t* key)
     int pipe_fd[2];
     pipe(pipe_fd);
     int f = fork();
-
-    if (f == 0)
-    {
+    if(f == 0) { 
         close(pipe_fd[0]);
-
-        EVP_CIPHER_CTX *ctx;
-        /* Create and initialise the context */
-        if(!(ctx = EVP_CIPHER_CTX_new()))
-            handleErrors();
-
-
-        const int buffer_size  = 4096;
-        uint8_t input_buffer[buffer_size * 2];
-        uint8_t cipher_buffer[buffer_size * 2];
-
-        int read_size = buffer_size;
-        int n;
-        while((mode || read(input_fd,&read_size,sizeof(int))) && ((n = read(input_fd,input_buffer,read_size)) > 0))
-        {
-            int nl;
-            if constexpr (mode)
-            {
-                 nl = encrypt(ctx,input_buffer,n,key,iv,cipher_buffer);
-                 cerr << "encrypting " << n << " " << nl << endl;
-                 write(pipe_fd[1],&nl,sizeof(int));
-            }
-            else{
-                 nl = decrypt(ctx,input_buffer,n,key,iv,cipher_buffer);
-                 cerr << "Decrypting " << n << " " << nl << endl;
-            }
-            write(pipe_fd[1],cipher_buffer,nl);
-        }
-
-        EVP_CIPHER_CTX_free(ctx);
+        function(input_fd,pipe_fd[1]);
     }
 
     close(input_fd);
     close(pipe_fd[1]);
     return pipe_fd[0];
-}
 
-const auto create_encrypt_device = aes_crypt<true>;
-const auto create_decrypt_device = aes_crypt<false>;
+}
